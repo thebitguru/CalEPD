@@ -311,8 +311,8 @@ uint16_t Gdew042t2::_setPartialRamArea(uint16_t x, uint16_t y, uint16_t xe, uint
   IO.data(y % 256);
   IO.data(ye / 256);
   IO.data(ye % 256);
-  //IO.data(0x01);         // Not any visual difference
-  IO.data(0x00);           // Not any visual difference
+  IO.data(0x01);         // Not any visual difference
+  // IO.data(0x00);           // Not any visual difference
   return (7 + xe - x) / 8; // number of bytes to transfer per line
 }
 
@@ -350,7 +350,7 @@ void Gdew042t2::updateWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, boo
   IO.cmd(0x12);      // display refresh
   _waitBusy("updateWindow");
 
-  IO.cmd(0x91);      // partial out
+  IO.cmd(0x91);      // partial in
   _setPartialRamArea(x, y, xe, ye);
   IO.cmd(0x13);
   for (int16_t y1 = y; y1 <= ye; y1++)
@@ -363,6 +363,8 @@ void Gdew042t2::updateWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h, boo
     }
   }
   IO.cmd(0x92); // partial out
+  // IO.cmd(0x12); // display refresh
+  _waitBusy("updateWindow");
 }
 
 void Gdew042t2::_waitBusy(const char* message){
@@ -372,7 +374,12 @@ void Gdew042t2::_waitBusy(const char* message){
   int64_t time_since_boot = esp_timer_get_time();
 
   while (1){
-    if (gpio_get_level((gpio_num_t)CONFIG_EINK_BUSY) == 1) break;
+    // FA - Temporary fix for the missing busy connection.
+    // if (gpio_get_level((gpio_num_t)CONFIG_EINK_BUSY) == 1) break;
+    IO.cmd(0x71);
+    uint8_t flags=0;
+    IO.read(&flags);
+    if ((flags & 0x01) == 1) break;
     vTaskDelay(1);
     if (esp_timer_get_time()-time_since_boot>2000000)
     {

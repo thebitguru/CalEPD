@@ -21,21 +21,36 @@ void EpdSpi::init(uint8_t frequency=4,bool debug=false){
     debug_enabled = debug;
 
     //Initialize GPIOs direction & initial states
-    gpio_set_direction((gpio_num_t)CONFIG_EINK_SPI_CS, GPIO_MODE_OUTPUT);
-    gpio_set_direction((gpio_num_t)CONFIG_EINK_DC, GPIO_MODE_OUTPUT);
-    gpio_set_direction((gpio_num_t)CONFIG_EINK_RST, GPIO_MODE_OUTPUT);
-    gpio_set_direction((gpio_num_t)CONFIG_EINK_BUSY, GPIO_MODE_INPUT);
-    gpio_set_pull_mode((gpio_num_t)CONFIG_EINK_BUSY, GPIO_PULLUP_ONLY);
+    ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_EINK_SPI_CS, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_EINK_DC, GPIO_MODE_OUTPUT));
+    // FA - Temporary fix for the missing busy connection.
+    if (CONFIG_EINK_RST != -1) {
+        ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_EINK_RST, GPIO_MODE_OUTPUT));
+    }
+    ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)CONFIG_EINK_BUSY, GPIO_MODE_INPUT));
+    ESP_ERROR_CHECK(gpio_set_pull_mode((gpio_num_t)CONFIG_EINK_BUSY, GPIO_PULLUP_ONLY));
 
     gpio_set_level((gpio_num_t)CONFIG_EINK_SPI_CS, 1);
     gpio_set_level((gpio_num_t)CONFIG_EINK_DC, 1);
-    gpio_set_level((gpio_num_t)CONFIG_EINK_RST, 1);
+    if (CONFIG_EINK_RST != -1) {
+        gpio_set_level((gpio_num_t)CONFIG_EINK_RST, 1);
+    }
     
     esp_err_t ret;
     // MISO not used, only Master to Slave
-    spi_bus_config_t buscfg={
+    // spi_bus_config_t buscfg={
+    buscfg={
         .mosi_io_num=CONFIG_EINK_SPI_MOSI,
         .miso_io_num = -1,
+        .sclk_io_num=CONFIG_EINK_SPI_CLK,
+        .quadwp_io_num=-1,
+        .quadhd_io_num=-1,
+        .max_transfer_sz=4094
+    };
+    // FA - Temporary fix for the missing busy connection.
+    buscfg_read={
+        .mosi_io_num=-1,
+        .miso_io_num=CONFIG_EINK_SPI_MOSI,
         .sclk_io_num=CONFIG_EINK_SPI_CLK,
         .quadwp_io_num=-1,
         .quadhd_io_num=-1,
@@ -49,7 +64,9 @@ void EpdSpi::init(uint8_t frequency=4,bool debug=false){
         multiplier = 1;
     }
     //Config Frequency and SS GPIO
-    spi_device_interface_config_t devcfg={
+    // FA - Temporary fix for the missing busy connection.
+    // spi_device_interface_config_t devcfg={
+    devcfg={
         .mode=0,  //SPI mode 0
         .clock_speed_hz=frequency*multiplier*1000,  // DEBUG: 50000 - No debug usually 4 Mhz
         .input_delay_ns=0,
@@ -158,8 +175,29 @@ void EpdSpi::data(const uint8_t *data, int len)
 }
 
 void EpdSpi::reset(uint8_t millis=20) {
+    // FA - Temporary fix for the missing busy connection.
+    printf("EpdSpi::reset() ignoring the normal reset logic\n");
+    return;
     gpio_set_level((gpio_num_t)CONFIG_EINK_RST, 0);
     vTaskDelay(millis / portTICK_RATE_MS);
     gpio_set_level((gpio_num_t)CONFIG_EINK_RST, 1);
     vTaskDelay(millis / portTICK_RATE_MS);
+}
+
+// FA - Temporary function to work around the missing BUSY connection.
+void EpdSpi::read(uint8_t *data) {
+    esp_err_t ret;
+    spi_bus_remove_device(spi);
+    ret = spi_bus_initialize(EPD_HOST, &buscfg_read, DMA_CHAN);
+    // ESP_ERROR_CHECK(ret);
+    ret = spi_bus_add_device(EPD_HOST, &devcfg, &spi);
+    spi_transaction_t t;
+    memset(&t, 0, sizeof(t));
+    t.length = 8;
+    t.rx_buffer = &data;
+    ret = spi_device_polling_transmit(spi, &t);
+    spi_bus_remove_device(spi);
+    ret = spi_bus_initialize(EPD_HOST, &buscfg, DMA_CHAN);
+    ESP_ERROR_CHECK(ret);
+    ret = spi_bus_add_device(EPD_HOST, &devcfg, &spi);
 }

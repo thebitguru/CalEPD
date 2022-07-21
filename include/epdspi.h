@@ -15,10 +15,15 @@ class EpdSpi : IoInterface
     void dataBuffer(uint8_t data);
     void data(const uint8_t *data, int len) override;
     
+    void read(uint8_t *data);
+    
     void reset(uint8_t millis) override;
     void init(uint8_t frequency, bool debug) override;
   private:
     bool debug_enabled = true;
+    spi_bus_config_t buscfg;
+    spi_bus_config_t buscfg_read;
+    spi_device_interface_config_t devcfg;
 };
 #endif
 // Note: using override compiler will issue an error for "changing the type"
