@@ -119,7 +119,6 @@ void EpdSpi::cmd(const uint8_t cmd)
 
     assert(ret==ESP_OK);
     gpio_set_level((gpio_num_t)CONFIG_EINK_DC, 1);
-    
 }
 
 void EpdSpi::data(uint8_t data)
@@ -188,15 +187,25 @@ void EpdSpi::reset(uint8_t millis=20) {
 void EpdSpi::read(uint8_t *data) {
     esp_err_t ret;
     spi_bus_remove_device(spi);
+    spi_bus_free(EPD_HOST);
+
     ret = spi_bus_initialize(EPD_HOST, &buscfg_read, DMA_CHAN);
-    // ESP_ERROR_CHECK(ret);
+    ESP_ERROR_CHECK(ret);
     ret = spi_bus_add_device(EPD_HOST, &devcfg, &spi);
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
     t.length = 8;
+    t.rxlength = 8;
+    t.length = 8;
+    t.tx_buffer = 0;
     t.rx_buffer = &data;
+    t.user = (void *)1;
+    t.flags = SPI_TRANS_USE_RXDATA;
     ret = spi_device_polling_transmit(spi, &t);
+    ESP_ERROR_CHECK(ret);
+
     spi_bus_remove_device(spi);
+    spi_bus_free(EPD_HOST);
     ret = spi_bus_initialize(EPD_HOST, &buscfg, DMA_CHAN);
     ESP_ERROR_CHECK(ret);
     ret = spi_bus_add_device(EPD_HOST, &devcfg, &spi);
