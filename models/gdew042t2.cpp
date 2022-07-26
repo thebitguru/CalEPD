@@ -218,6 +218,9 @@ void Gdew042t2::fillScreen(uint16_t color)
 }
 
 void Gdew042t2::_wakeUp(){
+  // FA - Temporary overrides for the PaperMETAR v1.
+  gpio_set_level((gpio_num_t)CONFIG_EINK_DISPLAY_ENABLE, 1);
+
   IO.reset(10);
 //IMPORTANT: Some EPD controllers like to receive data byte per byte
 //So this won't work:
@@ -396,6 +399,9 @@ void Gdew042t2::_sleep(){
   _waitBusy("power_off");
   IO.cmd(0x07);
   IO.data(0xA5);// power off
+
+  // FA - Temporary overrides for the PaperMETAR v1.
+  // gpio_set_level((gpio_num_t)CONFIG_EINK_DISPLAY_ENABLE, 0);
 }
 
 void Gdew042t2::_rotate(uint16_t& x, uint16_t& y, uint16_t& w, uint16_t& h)
